@@ -18,7 +18,7 @@ public class MentorshipSessionService {
     private final MentorshipSessionRepository sessionRepository;
     private final UserRepository userRepository;
 
-    /**
+    /*
      * Creates a new mentorship session.
      *
      * @param menteeId  ID of the mentee requesting the session
@@ -51,7 +51,7 @@ public class MentorshipSessionService {
         return sessionRepository.save(session);
     }
 
-    /**
+    /*
      * Updates the status of an existing mentorship session.
      *
      * @param sessionId ID of the session to update
@@ -83,11 +83,11 @@ public class MentorshipSessionService {
         return sessionRepository.save(session);
     }
 
-    /**
-     * Fetches all mentorship sessions for a specific mentee.
-     *
-     * @param menteeId ID of the mentee
-     * @return List of MentorshipSession objects created by the mentee
+    /*
+     Fetches all mentorship sessions for a specific mentee.
+
+     @param menteeId ID of the mentee
+     @return List of MentorshipSession objects created by the mentee
      */
     public List<MentorshipSession> getSessionsByMenteeId(Long menteeId) {
         // Validate mentee existence

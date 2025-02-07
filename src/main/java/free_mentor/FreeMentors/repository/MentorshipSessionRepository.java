@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface MentorshipSessionRepository extends JpaRepository<MentorshipSession, Long> {
 
-    /**
+    /*
      * Finds all mentorship sessions assigned to a specific mentor.
      *
      * @param mentorId The ID of the mentor
@@ -16,7 +16,7 @@ public interface MentorshipSessionRepository extends JpaRepository<MentorshipSes
      */
     List<MentorshipSession> findByMentorId(Long mentorId);
 
-    /**
+    /*
      * Finds all mentorship sessions created by a specific mentee.
      *
      * @param menteeId The ID of the mentee
