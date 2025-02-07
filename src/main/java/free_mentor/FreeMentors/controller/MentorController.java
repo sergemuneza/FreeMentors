@@ -37,10 +37,9 @@ public class MentorController {
         Map<String, String> response = new HashMap<>();
         response.put("message", "User successfully promoted to mentor");
         return ResponseEntity.ok(response);
-        
+
 
     }
-
 
     @GetMapping
     public ResponseEntity<List<User>> getAllMentors() {
