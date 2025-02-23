@@ -2,6 +2,7 @@ package free_mentor.FreeMentors.controller;
 
 import free_mentor.FreeMentors.entity.User;
 import free_mentor.FreeMentors.entity.Role;
+import free_mentor.FreeMentors.exception.UserAlreadyMentorException;
 import free_mentor.FreeMentors.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -28,17 +29,15 @@ public class MentorController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (user.getRole() == Role.MENTOR) {
-            throw new RuntimeException("User is already a mentor");
+            throw new UserAlreadyMentorException("User is already a mentor");
         }
 
         user.setRole(Role.MENTOR);
         userRepository.save(user);
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "User successfully promoted to mentor");
+        response.put("message", "User account changed to mentor");
         return ResponseEntity.ok(response);
-
-
     }
 
     @GetMapping

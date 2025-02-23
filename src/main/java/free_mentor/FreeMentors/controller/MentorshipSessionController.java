@@ -31,130 +31,103 @@ public class MentorshipSessionController {
             @RequestBody Map<String, Object> request) {
 
         Map<String, Object> response = new HashMap<>();
-
         try {
-            // Validate & extract token
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                response.put("error", "Missing or invalid token");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
+            validateToken(authHeader);
+            String token = authHeader.substring(7);
             Long menteeId = jwtUtil.extractUserId(token);
 
-            // Extract request body data
             Long mentorId = ((Number) request.get("mentorId")).longValue();
             String questions = (String) request.get("questions");
 
-            // Create mentorship session
             MentorshipSession session = sessionService.createSession(menteeId, mentorId, questions);
 
-            // Build response
-            response.put("status", 201);
-            Map<String, Object> data = new HashMap<>();
-            data.put("sessionId", session.getId());
-            data.put("mentorId", session.getMentor().getId());
-            data.put("menteeId", session.getMentee().getId());
-            data.put("questions", session.getQuestions());
-            data.put("menteeEmail", session.getMenteeEmail());
-            data.put("status", session.getStatus().toString());
-
+            response.put("status", HttpStatus.CREATED.value());
+            Map<String, Object> data = Map.of(
+                    "sessionId", session.getId(),
+                    "mentorId", session.getMentor().getId(),
+                    "menteeId", session.getMentee().getId(),
+                    "questions", session.getQuestions(),
+                    "menteeEmail", session.getMenteeEmail(),
+                    "status", session.getStatus().toString()
+            );
             response.put("data", data);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
-            response.put("error", "Invalid request: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return handleException(response, e, HttpStatus.BAD_REQUEST);
         }
     }
 
     /*
-      Accept a mentorship session.
+     Accept a mentorship session (mentors only).
      */
     @PatchMapping("/{sessionId}/accept")
     public ResponseEntity<Map<String, Object>> acceptSession(
             @RequestHeader("Authorization") String authHeader,
             @PathVariable Long sessionId) {
-
         return handleSessionUpdate(authHeader, sessionId, "APPROVED");
     }
 
     /*
-      Reject a mentorship session.
+     Reject a mentorship session (mentors only).
      */
     @PatchMapping("/{sessionId}/reject")
     public ResponseEntity<Map<String, Object>> rejectSession(
             @RequestHeader("Authorization") String authHeader,
             @PathVariable Long sessionId) {
-
-
         return handleSessionUpdate(authHeader, sessionId, "REJECTED");
     }
 
     /*
-      Get all sessions for the authenticated user (mentor or mentee).
+     Get all sessions for the authenticated user (mentor or mentee).
      */
-   @GetMapping("/all")
+    @GetMapping("/all")
     public ResponseEntity<Map<String, Object>> getSessions(
             @RequestHeader("Authorization") String authHeader) {
 
         Map<String, Object> response = new HashMap<>();
-
         try {
-            // Validate token
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                response.put("error", "Missing or invalid token");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
+            validateToken(authHeader);
+            String token = authHeader.substring(7);
             Long userId = jwtUtil.extractUserId(token);
             String userRole = jwtUtil.extractUserRole(token);
 
-            // Fetch sessions based on role
-            List<MentorshipSession> sessions;
-            if ("MENTOR".equalsIgnoreCase(userRole)) {
-                sessions = sessionService.getSessionsByMentorId(userId);
-            } else if ("MENTEE".equalsIgnoreCase(userRole)) {
-                sessions = sessionService.getSessionsByMenteeId(userId);
-            } else {
-                response.put("error", "Invalid user role");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
+            List<MentorshipSession> sessions = switch (userRole.toUpperCase()) {
+                case "MENTOR" -> sessionService.getSessionsByMentorId(userId);
+                case "MENTEE" -> sessionService.getSessionsByMenteeId(userId);
+                default -> throw new IllegalArgumentException("Invalid user role");
+            };
 
-            // If no sessions are found, return an appropriate response
             if (sessions.isEmpty()) {
-                response.put("status", 200);
+                response.put("status", HttpStatus.OK.value());
                 response.put("data", "No sessions found for the user.");
                 return ResponseEntity.ok(response);
             }
 
-            // Build response with all sessions
-            response.put("status", 200);
-            List<Map<String, Object>> sessionData = sessions.stream().map(session -> {
-                Map<String, Object> data = new HashMap<>();
-                data.put("sessionId", session.getId());
-                data.put("mentorId", session.getMentor().getId());
-                data.put("menteeId", session.getMentee().getId());
-                data.put("questions", session.getQuestions());
-                data.put("menteeEmail", session.getMenteeEmail());
-                data.put("status", session.getStatus().toString());
-                return data;
-            }).collect(Collectors.toList());
+            List<Map<String, Object>> sessionData = sessions.stream()
+                    .map(session -> {
+                        Map<String, Object> sessionMap = new HashMap<>();
+                        sessionMap.put("sessionId", session.getId());
+                        sessionMap.put("mentorId", session.getMentor().getId());
+                        sessionMap.put("menteeId", session.getMentee().getId());
+                        sessionMap.put("questions", session.getQuestions());
+                        sessionMap.put("menteeEmail", session.getMenteeEmail());
+                        sessionMap.put("status", session.getStatus().toString());
+                        return sessionMap;
+                    })
+                    .collect(Collectors.toList());
 
+            response.put("status", HttpStatus.OK.value());
             response.put("data", sessionData);
 
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
-            response.put("error", "Failed to fetch sessions: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return handleException(response, e, HttpStatus.BAD_REQUEST);
         }
     }
 
-
-    /*
-     Review a mentorship session.
+    /**
+     * Review a mentorship session.
      */
     @PostMapping("/{sessionId}/review")
     public ResponseEntity<Map<String, Object>> reviewMentor(
@@ -163,31 +136,20 @@ public class MentorshipSessionController {
             @RequestBody Map<String, Object> request) {
 
         Map<String, Object> response = new HashMap<>();
-
         try {
-            // Validate & extract token
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                response.put("error", "Missing or invalid token");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
+            validateToken(authHeader);
+            String token = authHeader.substring(7);
             Long menteeId = jwtUtil.extractUserId(token);
 
-            // Extract request body data
             Integer score = (Integer) request.get("score");
             String remark = (String) request.get("remark");
 
-            // Validate score
             if (score == null || score < 1 || score > 5) {
-                response.put("error", "Invalid score. It must be between 1 and 5.");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                throw new IllegalArgumentException("Invalid score. It must be between 1 and 5.");
             }
 
-            // Submit review
             MentorshipSession session = sessionService.reviewMentor(sessionId, menteeId, score, remark);
 
-            // Create ReviewResponseDTO
             ReviewResponseDTO reviewResponse = new ReviewResponseDTO(
                     session.getId(),
                     session.getMentor().getId(),
@@ -197,14 +159,12 @@ public class MentorshipSessionController {
                     remark
             );
 
-            // Build response
-            response.put("status", 201);
+            response.put("status", HttpStatus.CREATED.value());
             response.put("data", reviewResponse);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
-            response.put("error", "Failed to submit review: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return handleException(response, e, HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -217,71 +177,78 @@ public class MentorshipSessionController {
             @PathVariable Long sessionId) {
 
         Map<String, Object> response = new HashMap<>();
-
         try {
-            // Validate & extract token
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                response.put("error", "Missing or invalid token");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
+            validateToken(authHeader);
+            String token = authHeader.substring(7);
             Long menteeId = jwtUtil.extractUserId(token);
 
-            // Call the service method to delete the review
             sessionService.deleteReview(sessionId, menteeId);
 
-            // Prepare success response
             response.put("status", HttpStatus.OK.value());
-            Map<String, String> data = new HashMap<>();
-            data.put("message", "Review successfully deleted");
-            response.put("data", data);
+            response.put("message", "Review successfully deleted");
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            response.put("error", "Failed to delete review: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return handleException(response, e, HttpStatus.BAD_REQUEST);
         }
     }
 
+    /**
+     * Handle session updates (accept/reject) for mentors only.
+     */
     private ResponseEntity<Map<String, Object>> handleSessionUpdate(
             String authHeader, Long sessionId, String status) {
 
         Map<String, Object> response = new HashMap<>();
-
         try {
-            // Validate token
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                response.put("error", "Missing or invalid token");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            validateToken(authHeader);
+            String token = authHeader.substring(7);
+            Long mentorId = jwtUtil.extractUserId(token);
+            String userRole = jwtUtil.extractUserRole(token);
+
+            if (!"MENTOR".equalsIgnoreCase(userRole)) {
+                throw new IllegalArgumentException("Invalid user role. Only mentors can perform this action.");
             }
 
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
-            Long mentorId = jwtUtil.extractUserId(token);
-
-            // Update session status
             MentorshipSession session = sessionService.updateSessionStatus(sessionId, mentorId, status);
 
-            // Build response
-            Map<String, Object> data = new HashMap<>();
-            data.put("sessionId", session.getId());
-            data.put("mentorId", session.getMentor().getId());
-            data.put("menteeId", session.getMentee().getId());
-            data.put("questions", session.getQuestions());
-            data.put("menteeEmail", session.getMenteeEmail());
-            data.put("status", session.getStatus());
+            Map<String, Object> data = Map.of(
+                    "sessionId", session.getId(),
+                    "mentorId", session.getMentor().getId(),
+                    "menteeId", session.getMentee().getId(),
+                    "questions", session.getQuestions(),
+                    "menteeEmail", session.getMenteeEmail(),
+                    "status", session.getStatus()
+            );
 
-            response.put("status", 200);
+            response.put("status", HttpStatus.OK.value());
             response.put("data", data);
 
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
-            response.put("error", "Failed to update session: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return handleException(response, e, HttpStatus.BAD_REQUEST);
         }
     }
+
+    /**
+     * Validate the Authorization header.
+     */
+    private void validateToken(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("Missing or invalid token");
+        }
+    }
+
+    /**
+     * Handle exceptions uniformly.
+     */
+    private ResponseEntity<Map<String, Object>> handleException(
+            Map<String, Object> response, Exception e, HttpStatus status) {
+        response.put("error", e.getMessage());
+        return ResponseEntity.status(status).body(response);
+    }
 }
+
 
 
 
